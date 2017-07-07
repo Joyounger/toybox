@@ -1,0 +1,101 @@
+kolya@asus ~/src/toybox $ make menuconfig
+cc -o kconfig/mconf kconfig/mconf.c kconfig/zconf.tab.c \
+	kconfig/lxdialog/*.c -lcurses -DCURSES_LOC="<ncurses.h>" \
+	-DKBUILD_NO_NLS=1 -DPROJECT_NAME=\"ToyBox\"
+scripts/genconfig.sh
+kconfig/mconf Config.in
+kconfig/Makefile:12: recipe for target 'menuconfig' failed
+make: *** [menuconfig] Error 1
+
+
+
+
+kolya@asus ~/src/toybox $ make menuconfig
+kconfig/mconf Config.in
+#
+# configuration written to .config
+#
+
+
+*** End of ToyBox configuration.
+*** Execute 'make' to build, or try 'make help'.
+
+
+
+toybox/Config.in
+config TOYBOX_FLOAT
+	bool "Floating point support"
+	default y
+	help
+	  Include floating point support infrastructure and commands that
+	  require it.
+	  
+	  
+config TOYBOX_FREE
+	bool "Free memory unnecessarily"
+	default n
+	help
+	  When a program exits, the operating system will clean up after it
+	  (free memory, close files, etc). To save size, toybox usually relies
+	  on this behavior. If you're running toybox under a debugger or
+	  without a real OS (ala newlib+libgloss), enable this to make toybox
+	  clean up after itself.
+
+kolya@asus ~/src/toybox $ make clean 
+rm -f kconfig/zconf.hash.c kconfig/zconf.tab.c kconfig/lex.zconf.c kconfig/conf kconfig/mconf
+rm -f  getenforce getprop load_policy log restorecon runcon sendevent setenforce setprop start stop hello hostid skeleton skeleton_alias test_human_readable test_many_options test_scankey hostname killall md5sum sha1sum sha224sum sha256sum sha384sum sha512sum mknod mktemp mount nfsmount passwd pidof seq su sync umount ftpget ftpput ifconfig microcom nc netcat netstat rfkill tunctl acpi ascii base64 blkid fstype blockdev bzcat bunzip2 chcon chroot chvt clear count dos2unix unix2dos eject factor fallocate flock free freeramdisk fsfreeze fsync hexedit hwclock inotifyd insmod ionice iorenice login losetup lsattr chattr lsmod lspci lsusb makedevs mix mkpasswd mkswap modinfo mountpoint nbd-client nsenter unshare oneit partprobe pivot_root pmap printenv pwdx readahead readlink realpath reboot halt poweroff reset rev rmmod setsid shred stat swapoff swapon switch_root sysctl tac taskset nproc timeout truncate uptime usleep vconfig vmstat w which xxd yes basename cal cat catv chgrp chown chmod cksum cmp comm cp mv cpio cut date df dirname du echo env expand false file find grep egrep fgrep head id groups logname whoami kill killall5 link ln ls mkdir mkfifo nice nl nohup od paste patch printf ps top iotop pgrep pkill pwd renice rm rmdir sed sleep sort split strings tail tee time touch true tty ulimit uname uniq unlink uudecode uuencode wc who xargs  arp arping bootchartd brctl chrt compress crond crontab dd dhcp6 dhcp dhcpd diff dmesg dumpleases expr fdisk fold fsck getfattr getty groupadd addgroup groupdel delgroup gzip gunzip zcat host iconv init ip ipaddr iplink iproute iprule iptunnel ipcrm ipcs klogd last logger lsof mdev mke2fs modprobe more openvt deallocvt ping route setfattr sh toysh sulogin syslogd tar tcpsvd udpsvd telnet telnetd test tftp tftpd traceroute traceroute6 tr useradd adduser userdel deluser vi watch wget xzcat
+rm -rf toybox generated change .singleconfig*
+
+
+一配置的生成	
+  
+1 toybox/Config.in显示make menuconfig的顶级菜单及toybox global配置
+toybox/configure记录的是一些全局环境变量，
+如OPTIMIZE
+
+2 generated下的Config.in显示Posix commands等次级子菜单配置
+generated下的Config.probed记录的是在menuconfig中设置过得选项，设置过的选项设置完后右边的（NEW）标记会消失
+
+3 最后生成的配置会保存在toybox/.config文件中
+如勾选了config TOYBOX_FREE，.config中就会出现
+CFG_TOYBOX_FREE=y
+
+
+4 toybox/Makefile中有：
+KCONFIG_CONFIG ?= .config
+
+$(KCONFIG_CONFIG): $(KCONFIG_TOP)
+$(KCONFIG_TOP): generated/Config.in
+generated/Config.in: toys/*/*.c scripts/genconfig.sh
+	scripts/genconfig.sh
+
+
+
+二 make编译
+toybox/Makefile中有：
+all: toybox
+
+KCONFIG_CONFIG ?= .config
+
+toybox_stuff: $(KCONFIG_CONFIG) *.[ch] lib/*.[ch] toys/*.h toys/*/*.c scripts/*.sh
+
+toybox generated/unstripped/toybox: toybox_stuff
+	scripts/make.sh
+
+说明make会调用scripts/make.sh
+make.sh中，调用sed将.config中的所有配置提取出来，保存到TOYFILES中
+[ -z "$KCONFIG_CONFIG" ] && KCONFIG_CONFIG=.config
+
+# Extract a list of toys/*/*.c files to compile from the data in $KCONFIG_CONFIG
+# (First command names, then filenames with relevant {NEW,OLD}TOY() macro.)
+
+GITHASH="$(git describe --tags --abbrev=12 2>/dev/null)"
+[ ! -z "$GITHASH" ] && GITHASH="-DTOYBOX_VERSION=\"$GITHASH\""
+TOYFILES="$($SED -n 's/^CONFIG_\([^=]*\)=.*/\1/p' "$KCONFIG_CONFIG" | xargs | tr ' [A-Z]' '|[a-z]')"
+
+
+
+
+
+
+
