@@ -35,20 +35,20 @@ struct toy_list *toy_find(char *name)
 
   // If the name starts with "toybox" accept that as a match.  Otherwise
   // skip the first entry, which is out of order.
-
+  // 首先看命令名是不是“toybox”，如果不是就将bottom设为1，因为toybox命令在generated/newtoys.h的第一行
   if (!strncmp(name,"toybox",6)) return toy_list;
   bottom = 1;
 
   // Binary search to find this command.
-
+  // 采用二分查找法从newtoys.h中查找匹配到的命令
   top = ARRAY_LEN(toy_list)-1;
   for (;;) {
     int result;
 
     middle = (top+bottom)/2;
-    if (middle<bottom || middle>top) return NULL;
+    if (middle<bottom || middle>top) return NULL; //如果从支持的命令中没找到return null
     result = strcmp(name,toy_list[middle].name);
-    if (!result) return toy_list+middle;
+    if (!result) return toy_list+middle;  //找到后返回指向newtoys.h文件中命令所在位置的指针
     if (result<0) top = --middle;
     else bottom = ++middle;
   }
@@ -146,8 +146,10 @@ void toy_init(struct toy_list *which, char *argv[])
 // Only returns if it can't run command internally, otherwise exit() when done.
 void toy_exec(char *argv[])
 {
-  struct toy_list *which;
+  struct toy_list *which; //toy_list是一个由struct {char *name; int flags;}组成的结构体数组
 
+  // 在toy_exec中先调用toy_find从toybox/generated/newtoys.h中查找*argv是否在支持的命令中
+  // toy_find中如果找不到就返回NULL，因此这里找不到就return
   // Return if we can't find it (which includes no multiplexer case),
   if (!(which = toy_find(*argv))) return;
 
@@ -162,7 +164,7 @@ void toy_exec(char *argv[])
   if (toys.which && (which->flags&TOYFLAG_ROOTONLY) && toys.wasroot) return;
 
   // Run command
-  toy_init(which, argv);
+  toy_init(which, argv); //执行查找到的命令
   if (toys.which) toys.which->toy_main();
   xexit();
 }
@@ -174,9 +176,10 @@ void toybox_main(void)
   static char *toy_paths[]={"usr/","bin/","sbin/",0};
   int i, len = 0;
 
+  // 这时执行toys.argv[1]指向的就是“toybox”或者“ls”等，因此可以直接执行
   // fast path: try to exec immediately.
   // (Leave toys.which null to disable suid return logic.)
-  if (toys.argv[1]) toy_exec(toys.argv+1);
+  if (toys.argv[1]) toy_exec(toys.argv+1); //toys.argv[1]与toys.argv+1指向地址相同
 
   // For early error reporting
   toys.which = toy_list;
@@ -202,7 +205,7 @@ void toybox_main(void)
 
 int main(int argc, char *argv[])
 {
-  if (!*argv) return 127;
+  if (!*argv) return 127; //*argv指向的是执行toybox的命令字符串，如"toybox" "ls -a",所以正常情况下肯定不会return
 
   // Snapshot stack location so we can detect recursion depth later.
   // This is its own block so probe doesn't permanently consume stack.
@@ -230,12 +233,12 @@ int main(int argc, char *argv[])
     }
   }
 
-  if (CFG_TOYBOX) {
+  if (CFG_TOYBOX) { //menuconfig中默认将CFG_TOYBOX设为y，表示默认配置为multiplexer，所有命令都是toybox的链接
     // Call the multiplexer, adjusting this argv[] to be its' argv[1].
     // (It will adjust it back before calling toy_exec().)
-    toys.argv = argv-1;
+    toys.argv = argv-1;  //调用toy_exec之前将toys.argv地址值加1
     toybox_main();
-  } else {
+  } else { // 一个命令一个单独的bin文件
     // a single toybox command built standalone with no multiplexer
     toy_singleinit(toy_list, argv);
     toy_list->toy_main();
