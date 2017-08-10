@@ -35,20 +35,20 @@ struct toy_list *toy_find(char *name)
 
   // If the name starts with "toybox" accept that as a match.  Otherwise
   // skip the first entry, which is out of order.
-
+  // 首先看命令名是不是“toybox”，如果不是就将bottom设为1，因为toybox命令在generated/newtoys.h的第一行
   if (!strncmp(name,"toybox",6)) return toy_list;
   bottom = 1;
 
   // Binary search to find this command.
-
+  // 采用二分查找法从newtoys.h中查找匹配到的命令
   top = ARRAY_LEN(toy_list)-1;
   for (;;) {
     int result;
 
     middle = (top+bottom)/2;
-    if (middle<bottom || middle>top) return NULL;
+    if (middle<bottom || middle>top) return NULL; //如果从支持的命令中没找到return null
     result = strcmp(name,toy_list[middle].name);
-    if (!result) return toy_list+middle;
+    if (!result) return toy_list+middle; //找到后返回指向newtoys.h文件中命令所在位置的指针
     if (result<0) top = --middle;
     else bottom = ++middle;
   }
@@ -146,9 +146,11 @@ void toy_init(struct toy_list *which, char *argv[])
 // Only returns if it can't run command internally, otherwise exit() when done.
 void toy_exec(char *argv[])
 {
-  struct toy_list *which;
+  struct toy_list *which; //toy_list是一个由struct {char *name; int flags;}组成的结构体数组
 
   // Return if we can't find it (which includes no multiplexer case),
+  // 在toy_exec中先调用toy_find从toybox/generated/newtoys.h中查找*argv是否在支持的命令中
+  // toy_find中如果找不到就返回NULL，因此这里找不到就return
   if (!(which = toy_find(*argv))) return;
 
   // Return if stack depth getting noticeable (proxy for leaked heap, etc).
@@ -161,7 +163,7 @@ void toy_exec(char *argv[])
   // Return if we need to re-exec to acquire root via suid bit.
   if (toys.which && (which->flags&TOYFLAG_ROOTONLY) && toys.wasroot) return;
 
-  // Run command
+  // Run command //执行查找到的命令
   toy_init(which, argv);
   if (toys.which) toys.which->toy_main();
   xexit();
